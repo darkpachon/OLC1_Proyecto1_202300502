@@ -1,0 +1,123 @@
+package analizador;
+
+import java_cup.runtime.*;
+import java.util.ArrayList;
+import java.util.List;
+
+import ast.*;
+import reportes.ErrorLexicoSintactico;
+
+parser code {:
+    public ArrayList<ErrorLexicoSintactico> erroresSintacticos = new ArrayList<>();
+
+    @Override
+    public void syntax_error(Symbol s) {
+        String lexema = (s.value != null) ? s.value.toString() : "Token desconocido";
+        int linea = s.left;
+        int columna = s.right;
+        erroresSintacticos.add(new ErrorLexicoSintactico("Sintáctico", "Error: " + lexema, linea, columna));
+    }
+:}
+
+/* TERMINALES */
+terminal String MAGE, WARRIOR, INITIAL, RULES, IF, THEN, ELSE;
+terminal String MATCH, PLAYERS, ROUNDS, SCORING, BONUSES, MAIN, RUN, WITH, SEED;
+terminal String ROUND_NUMBER, TOTAL_ROUNDS, SELF_HEALTH, OPPONENT_HEALTH;
+terminal String SELF_RESOURCE, OPPONENT_RESOURCE, SELF_SCORE, OPPONENT_SCORE;
+terminal String RANDOM;
+terminal String ARCANE_BOLT, FIREBALL, MAGIC_BARRIER, HEALING_RUNE, MEDITATE;
+terminal String SLASH, HEAVY_STRIKE, SHIELD_BLOCK, WAR_CRY, REST;
+terminal String TRUE, FALSE, ENTERO, FLOTANTE, IDENTIFICADOR;
+terminal String IGUAL_IGUAL, DIFERENTE, MAYOR_IGUAL, MENOR_IGUAL, MAYOR, MENOR;
+terminal String AND, OR, NOT;
+terminal String LLAVE_A, LLAVE_C, CORCHETE_A, CORCHETE_C, PARENTESIS_A, PARENTESIS_C, DOS_PUNTOS, COMA;
+
+/* PRECEDENCIA */
+precedence left OR;
+precedence left AND;
+precedence right NOT;
+
+/* NO TERMINALES */
+non terminal Object programa, lista_secciones, seccion;
+non terminal Object estrategia, tipo_clase, reglas_estrategia, lista_reglas, regla;
+non terminal Object condicion, expresion_booleana, comparacion, expresion_entera;
+non terminal Object estado_entero;
+non terminal Object accion;
+
+/* INICIO */
+start with programa;
+
+programa ::= lista_secciones {: RESULT = lista_secciones; :};
+
+lista_secciones ::= lista_secciones seccion {: RESULT = lista_secciones; :}
+                 | seccion {: RESULT = seccion; :};
+
+seccion ::= estrategia {: RESULT = estrategia; :};
+
+estrategia ::= tipo_clase IDENTIFICADOR LLAVE_A 
+               INITIAL DOS_PUNTOS accion 
+               RULES DOS_PUNTOS CORCHETE_A reglas_estrategia CORCHETE_C 
+               LLAVE_C {: RESULT = null; :};
+
+tipo_clase ::= MAGE {: RESULT = "mage"; :}
+             | WARRIOR {: RESULT = "warrior"; :};
+
+reglas_estrategia ::= lista_reglas
+                    | lista_reglas regla;
+
+lista_reglas ::= lista_reglas regla COMA {: RESULT = lista_reglas; :}
+               | regla COMA {: RESULT = regla; :};
+
+regla ::= IF condicion THEN accion {: RESULT = new Regla(condicion, accion.toString()); :}
+        | ELSE accion {: RESULT = new Regla(Boolean.TRUE, accion.toString()); :};
+
+accion ::= ARCANE_BOLT {: RESULT = "ARCANE_BOLT"; :}
+         | FIREBALL {: RESULT = "FIREBALL"; :}
+         | MAGIC_BARRIER {: RESULT = "MAGIC_BARRIER"; :}
+         | HEALING_RUNE {: RESULT = "HEALING_RUNE"; :}
+         | MEDITATE {: RESULT = "MEDITATE"; :}
+         | SLASH {: RESULT = "SLASH"; :}
+         | HEAVY_STRIKE {: RESULT = "HEAVY_STRIKE"; :}
+         | SHIELD_BLOCK {: RESULT = "SHIELD_BLOCK"; :}
+         | WAR_CRY {: RESULT = "WAR_CRY"; :}
+         | REST {: RESULT = "REST"; :};
+
+condicion ::= expresion_booleana {: RESULT = expresion_booleana; :};
+
+expresion_booleana ::= expresion_booleana AND expresion_booleana
+                     {: RESULT = new NodoLogico(expresion_booleana, "AND", expresion_booleana); :}
+                     | expresion_booleana OR expresion_booleana
+                     {: RESULT = new NodoLogico(expresion_booleana, "OR", expresion_booleana); :}
+                     | NOT expresion_booleana
+                     {: RESULT = new NodoLogico("NOT", expresion_booleana, null); :}
+                     | PARENTESIS_A expresion_booleana PARENTESIS_C
+                     {: RESULT = expresion_booleana; :}
+                     | comparacion {: RESULT = comparacion; :}
+                     | TRUE {: RESULT = Boolean.TRUE; :}
+                     | FALSE {: RESULT = Boolean.FALSE; :};
+
+comparacion ::= expresion_entera MAYOR expresion_entera
+              {: RESULT = new NodoRelacional(expresion_entera, "MAYOR", expresion_entera); :}
+              | expresion_entera MENOR expresion_entera
+              {: RESULT = new NodoRelacional(expresion_entera, "MENOR", expresion_entera); :}
+              | expresion_entera MAYOR_IGUAL expresion_entera
+              {: RESULT = new NodoRelacional(expresion_entera, "MAYOR_IGUAL", expresion_entera); :}
+              | expresion_entera MENOR_IGUAL expresion_entera
+              {: RESULT = new NodoRelacional(expresion_entera, "MENOR_IGUAL", expresion_entera); :}
+              | expresion_entera IGUAL_IGUAL expresion_entera
+              {: RESULT = new NodoRelacional(expresion_entera, "IGUAL_IGUAL", expresion_entera); :}
+              | expresion_entera DIFERENTE expresion_entera
+              {: RESULT = new NodoRelacional(expresion_entera, "DIFERENTE", expresion_entera); :};
+
+expresion_entera ::= estado_entero {: RESULT = estado_entero; :}
+                   | ENTERO {: RESULT = Integer.parseInt(ENTERO); :};
+
+estado_entero ::= ROUND_NUMBER {: RESULT = "ROUND_NUMBER"; :}
+                | TOTAL_ROUNDS {: RESULT = "TOTAL_ROUNDS"; :}
+                | SELF_HEALTH {: RESULT = "SELF_HEALTH"; :}
+                | OPPONENT_HEALTH {: RESULT = "OPPONENT_HEALTH"; :}
+                | SELF_RESOURCE {: RESULT = "SELF_RESOURCE"; :}
+                | OPPONENT_RESOURCE {: RESULT = "OPPONENT_RESOURCE"; :}
+                | SELF_SCORE {: RESULT = "SELF_SCORE"; :}
+                | OPPONENT_SCORE {: RESULT = "OPPONENT_SCORE"; :}
+                | RANDOM {: RESULT = "RANDOM"; :};

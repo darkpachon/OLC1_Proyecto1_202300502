@@ -1,0 +1,25 @@
+package analizador;
+
+import java.io.Reader;
+import java.util.ArrayList;
+import java.util.List;
+
+/**
+ * Clase Lexer generada a partir de Lexer.jflex.
+ * TODO: Generar automáticamente con JFlex.
+ */
+public class Lexer {
+    
+    private Reader input;
+    public List<String> erroresLexicos;
+    
+    public Lexer(Reader input) {
+        this.input = input;
+        this.erroresLexicos = new ArrayList<>();
+    }
+    
+    public Object next_token() {
+        // Placeholder: Implementar con JFlex
+        return null;
+    }
+}
