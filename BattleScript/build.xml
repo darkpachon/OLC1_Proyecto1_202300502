@@ -1,0 +1,34 @@
+<project name="BattleScript" default="generar" basedir=".">
+    
+    <!-- Directorios principales simplificados -->
+    <property name="src.dir" value="src"/>
+    <property name="lib.dir" value="lib"/>
+    <property name="paquete.dir" value="${src.dir}/analizador"/>
+
+    <!-- Ruta de las librerías obligatorias -->
+    <path id="librerias">
+        <fileset dir="${lib.dir}">
+            <include name="jflex-full-1.9.1.jar"/>
+            <include name="java-cup-11b.jar"/>
+            <include name="java-cup-11b-runtime.jar"/>
+        </fileset>
+    </path>
+
+    <!-- Definición de las tareas de JFlex y CUP utilizando Ant -->
+    <taskdef name="jflex" classname="jflex.anttask.JFlexTask" classpathref="librerias"/>
+    <taskdef name="cup" classname="java_cup.anttask.CUPTask" classpathref="librerias"/>
+
+    <!-- Tarea principal para generar los analizadores -->
+    <target name="generar">
+        <echo message="Generando analizador léxico con JFlex..."/>
+        <!-- Genera el archivo .java dentro de la misma carpeta analizador -->
+        <jflex file="${paquete.dir}/Lexer.jflex" destdir="${src.dir}"/>
+        
+        <echo message="Generando analizador sintáctico con CUP..."/>
+        <!-- Genera el Parser.java y sym.java dentro de la carpeta analizador -->
+        <cup srcfile="${paquete.dir}/Parser.cup" destdir="${src.dir}" parser="Parser" symbols="sym"/>
+        
+        <echo message="¡Generación completada con éxito!"/>
+    </target>
+
+</project>
