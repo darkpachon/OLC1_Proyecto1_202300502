@@ -1,0 +1,46 @@
+// Archivo de prueba: Merlin (Mago) vs Ragnar (Guerrero)
+
+mage Merlin {
+    initial: ARCANE_BOLT
+    rules: [
+        if (SELF_HEALTH < 30) then HEALING_RUNE,
+        if (OPPONENT_HEALTH > 50) then FIREBALL,
+        if (ROUND_NUMBER > 5) then MEDITATE,
+        else: ARCANE_BOLT
+    ]
+}
+
+warrior Ragnar {
+    initial: SLASH
+    rules: [
+        if (SELF_HEALTH < 25) then REST,
+        if (OPPONENT_HEALTH > 60) then HEAVY_STRIKE,
+        if (ROUND_NUMBER > 3) then WAR_CRY,
+        else: SLASH
+    ]
+}
+
+match DueloPrueba {
+    players: [Merlin, Ragnar]
+    rounds: 10
+    scoring: {
+        damage_point: 2,
+        healing_point: 3,
+        successful_defense: 5,
+        victory_bonus: 20,
+        failed_action_penalty: 3
+    }
+    bonuses: {
+        mage_combo: [FIREBALL, ARCANE_BOLT, FIREBALL],
+        mage_combo_points: 15,
+        warrior_combo: [SLASH, HEAVY_STRIKE, SLASH],
+        warrior_combo_points: 15,
+        low_health_victory: 10
+    }
+}
+
+main {
+    run [DueloPrueba] with {
+        seed: 42
+    }
+}

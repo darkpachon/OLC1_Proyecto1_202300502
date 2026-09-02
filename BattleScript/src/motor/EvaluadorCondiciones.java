@@ -69,6 +69,22 @@ public class EvaluadorCondiciones {
                 return compararDoubles(valorRandom, op, valorComparacion);
             }
 
+            // CASO ESPECIAL: Comparar last_move() con una acción
+            if (nodo.getIzquierda() instanceof String && 
+                ((String) nodo.getIzquierda()).contains("last_move(")) {
+                String ultimaAccion = evaluarUltimaAccionString(nodo.getIzquierda());
+                String accionComparacion = nodo.getDerecha().toString();
+                
+                switch (op) {
+                    case "IGUAL_IGUAL":
+                        return ultimaAccion.equalsIgnoreCase(accionComparacion);
+                    case "DIFERENTE":
+                        return !ultimaAccion.equalsIgnoreCase(accionComparacion);
+                    default:
+                        return false;
+                }
+            }
+
             // CASO GENERAL: Comparar expresiones enteras
             int valIzq = evaluarEntero(nodo.getIzquierda());
             int valDer = evaluarEntero(nodo.getDerecha());
@@ -97,6 +113,11 @@ public class EvaluadorCondiciones {
                 ? simulador.getEstado2() 
                 : simulador.getEstado1();
             
+            // Soporte para funciones de historial: last_move(VARIABLE)
+            if (variable.contains("last_move(")) {
+                return evaluarUltimaAccion(variable);
+            }
+            
             switch (variable) {
                 case "ROUND_NUMBER":
                     return simulador.getRoundNumber();
@@ -124,6 +145,73 @@ public class EvaluadorCondiciones {
         }
 
         return 0;
+    }
+
+    /**
+     * Evalúa la función last_move() que retorna la última acción del historial
+     * Retorna el nombre de la acción como String envuelto en Integer (hash del nombre)
+     */
+    private int evaluarUltimaAccion(String funcionString) {
+        try {
+            // Extraer parámetro: last_move(opponent_history) → "opponent_history"
+            int inicio = funcionString.indexOf("(") + 1;
+            int fin = funcionString.indexOf(")");
+            String parametro = funcionString.substring(inicio, fin).trim();
+            
+            EstadoCombatiente estado = null;
+            
+            // Determinar a quién pertenece el historial
+            if ("OPPONENT_HISTORY".equalsIgnoreCase(parametro) || 
+                "opponent_history".equalsIgnoreCase(parametro)) {
+                estado = (jugadorActual == 1) ? simulador.getEstado2() : simulador.getEstado1();
+            } else if ("SELF_HISTORY".equalsIgnoreCase(parametro) || 
+                       "self_history".equalsIgnoreCase(parametro)) {
+                estado = estadoActual;
+            }
+            
+            if (estado != null && estado.getHistorial().size() > 0) {
+                String ultimaAccion = estado.obtenerUltimAccion();
+                // Retornar hash de la acción para comparación
+                return ultimaAccion != null ? ultimaAccion.hashCode() : 0;
+            }
+        } catch (Exception e) {
+            // Si hay error, retorna 0
+        }
+        return 0;
+    }
+    
+    /**
+     * Método auxiliar para comparar la última acción con un nombre de acción
+     */
+    public String evaluarUltimaAccionString(Object expresion) {
+        if (expresion instanceof String) {
+            String variable = (String) expresion;
+            
+            if (variable.contains("last_move(")) {
+                try {
+                    int inicio = variable.indexOf("(") + 1;
+                    int fin = variable.indexOf(")");
+                    String parametro = variable.substring(inicio, fin).trim();
+                    
+                    EstadoCombatiente estado = null;
+                    
+                    if ("OPPONENT_HISTORY".equalsIgnoreCase(parametro) || 
+                        "opponent_history".equalsIgnoreCase(parametro)) {
+                        estado = (jugadorActual == 1) ? simulador.getEstado2() : simulador.getEstado1();
+                    } else if ("SELF_HISTORY".equalsIgnoreCase(parametro) || 
+                               "self_history".equalsIgnoreCase(parametro)) {
+                        estado = estadoActual;
+                    }
+                    
+                    if (estado != null && estado.getHistorial().size() > 0) {
+                        return estado.obtenerUltimAccion();
+                    }
+                } catch (Exception e) {
+                    return "";
+                }
+            }
+        }
+        return "";
     }
 
     private boolean compararEnteros(int a, String operador, int b) {
