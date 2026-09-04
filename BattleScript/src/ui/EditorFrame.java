@@ -1,27 +1,33 @@
 package ui;
 
-import analizador.Lexer;
-import analizador.Parser;
-import java.awt.*;
-import java.io.*;
-import java.nio.file.Files;
-import java.util.ArrayList;
-import java.util.List;
 import javax.swing.*;
 import javax.swing.filechooser.FileNameExtensionFilter;
+import java.awt.*;
+import java.io.*;
+import java.util.ArrayList;
+import java.util.List;
+
+import analizador.Lexer;
+import analizador.Parser;
+import analizador.sym;
 import reportes.ErrorLexicoSintactico;
 import reportes.GestorReportes;
+import reportes.TokenInfo;
+import java_cup.runtime.Symbol;
 
-/**
- * Ventana principal del entorno de trabajo de BattleScript.
- * Contiene el editor de texto, consola de salida y visor de reportes.
- */
+import ast.*;
+import motor.*;
+
 public class EditorFrame extends JFrame {
 
     private JTextArea areaEntrada;
     private JTextArea areaReporte;
     private JTextArea areaSalida;
+
     private File archivoActual = null;
+
+    private List<TokenInfo> ultimosTokens = new ArrayList<>();
+    private List<ErrorLexicoSintactico> ultimosErrores = new ArrayList<>();
 
     public EditorFrame() {
         setTitle("BattleScript IDE - Compilador");
@@ -32,26 +38,6 @@ public class EditorFrame extends JFrame {
 
         inicializarMenu();
         inicializarPaneles();
-
-        // Redirigir la salida estándar y de error al área de texto
-        redirigirSalida();
-    }
-
-    /**
-     * Redirige System.out y System.err hacia el área de salida de la interfaz.
-     */
-    private void redirigirSalida() {
-        PrintStream ps = new PrintStream(new OutputStream() {
-            @Override
-            public void write(int b) {
-                SwingUtilities.invokeLater(() -> {
-                    areaSalida.append(String.valueOf((char) b));
-                    areaSalida.setCaretPosition(areaSalida.getDocument().getLength());
-                });
-            }
-        });
-        System.setOut(ps);
-        System.setErr(ps);
     }
 
     private void inicializarMenu() {
@@ -64,6 +50,7 @@ public class EditorFrame extends JFrame {
         itemAbrir.addActionListener(e -> abrirArchivo());
         JMenuItem itemGuardar = new JMenuItem("Guardar Archivo");
         itemGuardar.addActionListener(e -> guardarArchivo());
+
         menuArchivo.add(itemNuevo);
         menuArchivo.add(itemAbrir);
         menuArchivo.add(itemGuardar);
@@ -71,32 +58,23 @@ public class EditorFrame extends JFrame {
         JMenu menuReportes = new JMenu("Reportes");
         JMenuItem itemReporteTokens = new JMenuItem("Reporte de Tokens");
         JMenuItem itemReporteErrores = new JMenuItem("Reporte de Errores");
-        itemReporteTokens.addActionListener(e -> areaReporte.setText(GestorReportes.generarTablaTokens()));
-        itemReporteErrores.addActionListener(e -> {
-            // Ejemplo: mostrar errores sintácticos del parser si existen
-            // Por ahora usamos lista de ejemplo
-            List<ErrorLexicoSintactico> erroresEjemplo = new ArrayList<>();
-            erroresEjemplo.add(new ErrorLexicoSintactico("Sintáctico", "Falta ';' al final de la instrucción", 10, 5));
-            areaReporte.setText(GestorReportes.generarTablaErrores(erroresEjemplo));
-        });
+
+        itemReporteTokens.addActionListener(e -> mostrarReporteTokens());
+        itemReporteErrores.addActionListener(e -> mostrarReporteErrores());
+
         menuReportes.add(itemReporteTokens);
         menuReportes.add(itemReporteErrores);
 
         JMenu menuEjecutar = new JMenu("Ejecutar");
         JMenuItem itemAnalizar = new JMenuItem("Analizar y Ejecutar");
         itemAnalizar.addActionListener(e -> ejecutarAnalisisYSimulacion());
-        menuEjecutar.add(itemAnalizar);
 
-        // Menú Herramientas
-        JMenu menuHerramientas = new JMenu("Herramientas");
-        JMenuItem itemLimpiarSalida = new JMenuItem("Limpiar Salida");
-        itemLimpiarSalida.addActionListener(e -> areaSalida.setText(""));
-        menuHerramientas.add(itemLimpiarSalida);
+        menuEjecutar.add(itemAnalizar);
 
         menuBar.add(menuArchivo);
         menuBar.add(menuReportes);
         menuBar.add(menuEjecutar);
-        menuBar.add(menuHerramientas);
+
         setJMenuBar(menuBar);
     }
 
@@ -143,13 +121,12 @@ public class EditorFrame extends JFrame {
         area.setFont(new Font("Monospaced", Font.PLAIN, 14));
     }
 
-    // --- ACCIONES DE MENÚ ---
-
     private void nuevoArchivo() {
         areaEntrada.setText("");
         areaSalida.setText("");
         areaReporte.setText("");
         archivoActual = null;
+        limpiarDatosAnalisis();
         JOptionPane.showMessageDialog(this, "Nuevo archivo creado.");
     }
 
@@ -157,17 +134,15 @@ public class EditorFrame extends JFrame {
         JFileChooser fileChooser = new JFileChooser();
         FileNameExtensionFilter filtro = new FileNameExtensionFilter("Archivos BattleScript (*.btl)", "btl");
         fileChooser.setFileFilter(filtro);
+
         if (fileChooser.showOpenDialog(this) == JFileChooser.APPROVE_OPTION) {
             archivoActual = fileChooser.getSelectedFile();
-            try {
-                // Leer todo el contenido del archivo como String
-                String contenido = new String(Files.readAllBytes(archivoActual.toPath()), "UTF-8");
-                areaEntrada.setText(contenido);
+            try (BufferedReader reader = new BufferedReader(new FileReader(archivoActual))) {
+                areaEntrada.read(reader, null);
                 areaSalida.setText("Archivo cargado con éxito: " + archivoActual.getName());
-                areaReporte.setText(""); // Limpiar reporte al cargar nuevo archivo
+                limpiarDatosAnalisis();
             } catch (IOException ex) {
-                JOptionPane.showMessageDialog(this, "Error al leer el archivo: " + ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
-                areaSalida.setText("Error al cargar el archivo.");
+                JOptionPane.showMessageDialog(this, "Error al leer el archivo.", "Error", JOptionPane.ERROR_MESSAGE);
             }
         }
     }
@@ -177,6 +152,7 @@ public class EditorFrame extends JFrame {
             JFileChooser fileChooser = new JFileChooser();
             FileNameExtensionFilter filtro = new FileNameExtensionFilter("Archivos BattleScript (*.btl)", "btl");
             fileChooser.setFileFilter(filtro);
+
             if (fileChooser.showSaveDialog(this) == JFileChooser.APPROVE_OPTION) {
                 archivoActual = fileChooser.getSelectedFile();
                 if (!archivoActual.getName().toLowerCase().endsWith(".btl")) {
@@ -186,17 +162,20 @@ public class EditorFrame extends JFrame {
                 return;
             }
         }
-        try {
-            Files.write(archivoActual.toPath(), areaEntrada.getText().getBytes("UTF-8"));
+
+        try (BufferedWriter writer = new BufferedWriter(new FileWriter(archivoActual))) {
+            areaEntrada.write(writer);
             areaSalida.setText("Archivo guardado con éxito: " + archivoActual.getName());
         } catch (IOException ex) {
-            JOptionPane.showMessageDialog(this, "Error al guardar el archivo: " + ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
+            JOptionPane.showMessageDialog(this, "Error al guardar el archivo.", "Error", JOptionPane.ERROR_MESSAGE);
         }
     }
 
-    /**
-     * Ejecuta el análisis léxico-sintáctico y, si no hay errores, lanza la simulación.
-     */
+    private void limpiarDatosAnalisis() {
+        ultimosTokens.clear();
+        ultimosErrores.clear();
+    }
+
     private void ejecutarAnalisisYSimulacion() {
         String codigo = areaEntrada.getText();
         if (codigo.trim().isEmpty()) {
@@ -205,93 +184,170 @@ public class EditorFrame extends JFrame {
         }
 
         areaSalida.setText("");
-        areaSalida.append("Iniciando análisis léxico y sintáctico...\n");
+        limpiarDatosAnalisis();
 
+        // Mostrar primeras líneas del código para depuración
+        areaSalida.append("=== INICIO ANÁLISIS ===\n");
+        String[] lineas = codigo.split("\n");
+        int maxLineas = Math.min(5, lineas.length);
+        for (int i = 0; i < maxLineas; i++) {
+            areaSalida.append("L" + (i+1) + ": " + lineas[i] + "\n");
+        }
+        areaSalida.append("... (total " + lineas.length + " líneas)\n\n");
+
+        // --- 1. Análisis léxico ---
         try {
+            areaSalida.append("Creando lexer...\n");
             StringReader lector = new StringReader(codigo);
             Lexer lexer = new Lexer(lector);
-            Parser parser = new Parser(lexer);
-            // Intentar parsear
-            Object ast = parser.parse();
+            areaSalida.append("Lexer creado. Iniciando lectura de tokens...\n");
 
-            // Verificar errores
-            if (lexer.erroresLexicos.isEmpty() && parser.erroresSintacticos.isEmpty()) {
-                areaSalida.append("✅ Análisis exitoso. No se encontraron errores.\n");
-                areaSalida.append("🚀 Iniciando simulación...\n\n");
+            int contador = 0;
+            Symbol s = null;
+            boolean eofAlcanzado = false;
+            int maxTokens = 10000;
 
-                // Cuando el parser esté completo, descomenta la línea:
-                // ejecutarSimulacionReal(parser);
-
-                // Por ahora, usamos el ejemplo
-                ejecutarSimulacionEjemplo();
-
-            } else {
-                areaSalida.append("❌ Se encontraron errores en el código.\n");
-                areaSalida.append("   Léxicos: " + lexer.erroresLexicos.size() + "\n");
-                areaSalida.append("   Sintácticos: " + parser.erroresSintacticos.size() + "\n");
-                areaSalida.append("Revisa la pestaña de Reportes para más detalles.\n");
-                // Mostrar errores en el reporte si se desea
-                if (!lexer.erroresLexicos.isEmpty()) {
-                    areaReporte.setText(GestorReportes.generarTablaErrores(lexer.erroresLexicos));
-                } else if (!parser.erroresSintacticos.isEmpty()) {
-                    areaReporte.setText(GestorReportes.generarTablaErrores(parser.erroresSintacticos));
+            while (!eofAlcanzado && contador < maxTokens) {
+                try {
+                    s = lexer.next_token();
+                    contador++;
+                    if (s.sym == sym.EOF) {
+                        eofAlcanzado = true;
+                        areaSalida.append("EOF alcanzado.\n");
+                        break;
+                    }
+                    if (s.sym != sym.error) {
+                        String nombreToken = obtenerNombreToken(s.sym);
+                        String lexema = (s.value != null) ? s.value.toString() : "";
+                        int linea = s.left;
+                        int columna = s.right;
+                        ultimosTokens.add(new TokenInfo(contador, nombreToken, lexema, linea, columna));
+                    }
+                } catch (Exception ex) {
+                    areaSalida.append("❌ Excepción al leer token " + (contador+1) + ": " + ex.getMessage() + "\n");
+                    ex.printStackTrace();
+                    // Mostrar la traza en el área de salida (primeras líneas)
+                    StackTraceElement[] stack = ex.getStackTrace();
+                    for (int i = 0; i < Math.min(5, stack.length); i++) {
+                        areaSalida.append("   " + stack[i].toString() + "\n");
+                    }
+                    throw ex; // relanzamos para salir del bucle y reportar error
                 }
             }
 
+            if (contador >= maxTokens) {
+                areaSalida.append("⚠️ Límite de tokens alcanzado (" + maxTokens + ").\n");
+            }
+
+            // Capturar errores léxicos del lexer
+            ultimosErrores.addAll(lexer.erroresLexicos);
+
+            areaSalida.append("Análisis léxico completado.\n");
+            areaSalida.append("  Tokens: " + ultimosTokens.size() + "\n");
+            areaSalida.append("  Errores: " + ultimosErrores.size() + "\n");
+
+            if (!ultimosErrores.isEmpty()) {
+                areaSalida.append("⚠️ Hay errores léxicos. No se ejecutará la simulación.\n");
+                areaReporte.setText(GestorReportes.generarTablaErrores(ultimosErrores));
+                return;
+            }
+
+            areaSalida.append("✅ Sin errores léxicos.\n\n");
+
+            // Mostrar reporte de tokens
+            areaReporte.setText(GestorReportes.generarTablaTokens(ultimosTokens));
+
         } catch (Exception ex) {
-            areaSalida.append("💥 Error crítico durante el análisis.\n");
-            StringWriter sw = new StringWriter();
-            PrintWriter pw = new PrintWriter(sw);
-            ex.printStackTrace(pw);
-            areaSalida.append(sw.toString());
+            areaSalida.append("❌ ERROR CRÍTICO en el análisis léxico:\n");
+            areaSalida.append("   " + ex.getMessage() + "\n");
+            ex.printStackTrace();
+            return;
+        }
+
+        // --- 2. Simulación ---
+        areaSalida.append("=== EJECUTANDO SIMULACIÓN ===\n");
+        try {
+            String resultado = ejecutarSimulacionPrueba();
+            areaSalida.append(resultado);
+        } catch (Exception ex) {
+            areaSalida.append("❌ Error en la simulación: " + ex.getMessage() + "\n");
+            ex.printStackTrace();
         }
     }
 
-    /**
-     * Simulación real usando el parser (cuando esté implementado).
-     * Por ahora no se usa porque el parser es un stub.
-     */
-    private void ejecutarSimulacionReal(Parser parser) {
-        // Obtener las estrategias y partidas del parser
-        // var estrategias = parser.getEstrategias();
-        // var partidas = parser.getPartidas();
-        // var main = parser.getMainEjecucion();
-        // ... ejecutar simulador con esos datos
-        // Ejemplo:
-        // if (!partidas.isEmpty()) {
-        //     Partida partida = partidas.get(0);
-        //     Estrategia jugador1 = estrategias.get(0);
-        //     Estrategia jugador2 = estrategias.get(1);
-        //     int seed = 123; // obtener del main
-        //     Simulador simulador = new Simulador(partida, jugador1, jugador2, seed);
-        //     String resultado = simulador.ejecutarPartida();
-        //     System.out.println(resultado);
-        // }
-        System.out.println("⚠️ El parser aún no está implementado. No se puede ejecutar la simulación real.");
+    // ==================== MÉTODOS DE SIMULACIÓN ====================
+
+    private Estrategia crearEstrategiaMago() {
+        Estrategia mago = new Estrategia("Merlin", "mage");
+        mago.setAccionInicial("ARCANE_BOLT");
+
+        List<Regla> reglas = new ArrayList<>();
+        reglas.add(new Regla(new NodoRelacional("SELF_HEALTH", "MENOR", 30), "HEALING_RUNE"));
+        reglas.add(new Regla(new NodoRelacional("OPPONENT_HEALTH", "MAYOR", 50), "FIREBALL"));
+        reglas.add(new Regla(new NodoRelacional("ROUND_NUMBER", "MAYOR", 5), "MEDITATE"));
+
+        mago.setReglas(reglas);
+        mago.setAccionPorDefecto("ARCANE_BOLT");
+        return mago;
     }
 
-    /**
-     * EJEMPLO de simulación que usa System.out (redirigido a la interfaz).
-     * Reemplázalo con tu lógica real cuando el parser funcione.
-     */
-    private void ejecutarSimulacionEjemplo() {
-        System.out.println("=================================================");
-        System.out.println("=== SIMULACIÓN DE DUELO (ejemplo) ===");
-        System.out.println("Jugador 1: Merlin (mage)");
-        System.out.println("Jugador 2: Ragnar (warrior)");
-        System.out.println("Rondas totales: 10");
-        System.out.println("=================================================\n");
+    private Estrategia crearEstrategiaGuerrero() {
+        Estrategia guerrero = new Estrategia("Ragnar", "warrior");
+        guerrero.setAccionInicial("SLASH");
 
-        for (int r = 0; r < 10; r++) {
-            System.out.println("--- Ronda " + (r + 1) + " ---");
-            System.out.println("Merlin: ARCANE_BOLT (daño: 29)");
-            System.out.println("Ragnar: SLASH (daño: 26)");
-            System.out.println("  [ESTADO] Merlin: 74 HP / 110 Recurso  |  Ragnar: 111 HP / 90 Recurso");
+        List<Regla> reglas = new ArrayList<>();
+        reglas.add(new Regla(new NodoRelacional("SELF_HEALTH", "MENOR", 25), "REST"));
+        reglas.add(new Regla(new NodoRelacional("OPPONENT_HEALTH", "MAYOR", 60), "HEAVY_STRIKE"));
+        reglas.add(new Regla(new NodoRelacional("ROUND_NUMBER", "MAYOR", 3), "WAR_CRY"));
+
+        guerrero.setReglas(reglas);
+        guerrero.setAccionPorDefecto("SLASH");
+        return guerrero;
+    }
+
+    private Partida crearPartidaPrueba() {
+        Partida partida = new Partida("DueloPrueba");
+        partida.setRondas(10);
+        partida.setDamagePoint(2);
+        partida.setHealingPoint(3);
+        partida.setSuccessfulDefense(5);
+        partida.setVictoryBonus(20);
+        partida.setFailedActionPenalty(3);
+        return partida;
+    }
+
+    private String ejecutarSimulacionPrueba() {
+        Estrategia merlin = crearEstrategiaMago();
+        Estrategia ragnar = crearEstrategiaGuerrero();
+        Partida partida = crearPartidaPrueba();
+        Simulador sim = new Simulador(partida, merlin, ragnar, 42);
+        return sim.ejecutarPartida();
+    }
+
+    // ==================== MÉTODOS PARA REPORTES ====================
+
+    private String obtenerNombreToken(int symCode) {
+        try {
+            return sym.terminalNames[symCode];
+        } catch (Exception e) {
+            return "TOKEN_" + symCode;
         }
+    }
 
-        System.out.println("\n=================================================");
-        System.out.println("🏆 ¡GANADOR: Merlin!");
-        System.out.println("=================================================");
+    private void mostrarReporteTokens() {
+        if (ultimosTokens.isEmpty()) {
+            areaReporte.setText("⚠️ No hay tokens. Ejecuta 'Analizar y Ejecutar' primero.");
+            return;
+        }
+        areaReporte.setText(GestorReportes.generarTablaTokens(ultimosTokens));
+    }
+
+    private void mostrarReporteErrores() {
+        if (ultimosErrores.isEmpty()) {
+            areaReporte.setText("✅ No se encontraron errores.");
+            return;
+        }
+        areaReporte.setText(GestorReportes.generarTablaErrores(ultimosErrores));
     }
 
     public static void main(String[] args) {

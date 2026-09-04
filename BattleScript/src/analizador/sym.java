@@ -100,4 +100,22 @@ public class sym {
     // Especiales
     public static final int EOF = 74;
     public static final int error = 75;
+
+    // Nombres de los tokens (debe coincidir con los números anteriores)
+    public static final String[] terminalNames = {
+        "EOF", "error",
+        "MAGE", "WARRIOR", "INITIAL", "RULES", "IF", "THEN", "ELSE", "MATCH",
+        "PLAYERS", "ROUNDS", "SCORING", "BONUSES", "MAIN", "RUN", "WITH", "SEED",
+        "ENTERO", "FLOTANTE", "IDENTIFICADOR", "TRUE", "FALSE",
+        "DAMAGE_POINT", "HEALING_POINT", "SUCCESSFUL_DEFENSE", "VICTORY_BONUS", "FAILED_ACTION_PENALTY",
+        "MAGE_COMBO", "MAGE_COMBO_POINTS", "WARRIOR_COMBO", "WARRIOR_COMBO_POINTS", "LOW_HEALTH_VICTORY",
+        "ARCANE_BOLT", "FIREBALL", "MAGIC_BARRIER", "HEALING_RUNE", "MEDITATE",
+        "SLASH", "HEAVY_STRIKE", "SHIELD_BLOCK", "WAR_CRY", "REST",
+        "ROUND_NUMBER", "TOTAL_ROUNDS", "SELF_HEALTH", "OPPONENT_HEALTH",
+        "SELF_RESOURCE", "OPPONENT_RESOURCE", "SELF_SCORE", "OPPONENT_SCORE", "RANDOM",
+        "SELF_HISTORY", "OPPONENT_HISTORY", "GET_MOVE", "LAST_MOVE", "GET_MOVES_COUNT", "GET_LAST_N_MOVES",
+        "IGUAL_IGUAL", "DIFERENTE", "MAYOR", "MENOR", "MAYOR_IGUAL", "MENOR_IGUAL", "AND", "OR", "NOT",
+        "LLAVE_A", "LLAVE_C", "CORCHETE_A", "CORCHETE_C", "PARENTESIS_A", "PARENTESIS_C",
+        "DOS_PUNTOS", "COMA"
+    };
 }

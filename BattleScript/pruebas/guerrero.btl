@@ -1,0 +1,83 @@
+// Código modificado para que el guerrero gane
+
+mage Aurora {
+ initial: ARCANE_BOLT
+ rules: [
+ if self_health < 40 then HEALING_RUNE,
+ if self_resource > 50 && opponent_health < 60 then ARCANE_BOLT, // antes era FIREBALL
+ if last_move(opponent_history) == HEAVY_STRIKE then MAGIC_BARRIER,
+ else ARCANE_BOLT
+ ]
+}
+
+warrior Titan {
+ initial: HEAVY_STRIKE  // empieza con ataque fuerte
+ rules: [
+ if self_health < 35 then SHIELD_BLOCK,
+ if self_resource > 40 || opponent_health < 30 then HEAVY_STRIKE,
+ if last_move(opponent_history) == FIREBALL then SHIELD_BLOCK,
+ else HEAVY_STRIKE  // por defecto ataque fuerte
+ ]
+}
+
+mage Luna {
+ initial: MAGIC_BARRIER
+ rules: [
+ if self_resource < 25 then MEDITATE,
+ if opponent_health < 50 && self_resource > 30 then ARCANE_BOLT, // antes era FIREBALL
+ else ARCANE_BOLT
+ ]
+}
+
+warrior Leon {
+ initial: HEAVY_STRIKE
+ rules: [
+ if self_health < 45 then SHIELD_BLOCK,
+ if opponent_health < 40 || self_resource > 60 then HEAVY_STRIKE,
+ else HEAVY_STRIKE
+ ]
+}
+
+match PartidaUno {
+ players: [Aurora, Titan]
+ rounds: 6
+ scoring: {
+ damage_point: 1,
+ healing_point: 1,
+ successful_defense: 20,
+ victory_bonus: 100,
+ failed_action_penalty: 10
+ }
+ bonuses: {
+ mage_combo: [ARCANE_BOLT, ARCANE_BOLT, ARCANE_BOLT], // combo débil
+ mage_combo_points: 10,
+ warrior_combo: [HEAVY_STRIKE, HEAVY_STRIKE, HEAVY_STRIKE], // combo fuerte
+ warrior_combo_points: 50,
+ low_health_victory: 20
+ }
+}
+
+match PartidaDos {
+ players: [Luna, Leon]
+ rounds: 6
+ scoring: {
+ damage_point: 1,
+ healing_point: 1,
+ successful_defense: 20,
+ victory_bonus: 100,
+ failed_action_penalty: 10
+ }
+ bonuses: {
+ mage_combo: [ARCANE_BOLT, ARCANE_BOLT, ARCANE_BOLT],
+ mage_combo_points: 10,
+ warrior_combo: [HEAVY_STRIKE, HEAVY_STRIKE, HEAVY_STRIKE],
+ warrior_combo_points: 50,
+ low_health_victory: 20
+ }
+}
+
+main {
+ run [PartidaUno, PartidaDos] with {
+ seed: 55
+ }
+}
